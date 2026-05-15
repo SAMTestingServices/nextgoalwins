@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="NextGoalWins.Api/NextGoalWins.Api.csproj" />
+  <Project Path="NextGoalWins.Core/NextGoalWins.Core.csproj" />
+  <Project Path="NextGoalWins.Data/NextGoalWins.Data.csproj" />
+</Solution>
