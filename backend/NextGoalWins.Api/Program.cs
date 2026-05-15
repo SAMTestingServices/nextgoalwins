@@ -22,7 +22,11 @@ builder.Services.AddScoped<IGameHubNotifier, GameHubNotifier>();
 builder.Services.AddScoped<DatabaseSeeder>();
 
 // ── SignalR ───────────────────────────────────────────────────────────────────
-builder.Services.AddSignalR();
+// Uses Azure SignalR Service when deployed; falls back to local SignalR in dev.
+var signalR = builder.Services.AddSignalR();
+var azureSignalRConn = builder.Configuration["Azure:SignalR:ConnectionString"];
+if (!string.IsNullOrWhiteSpace(azureSignalRConn))
+    signalR.AddAzureSignalR(azureSignalRConn);
 
 // ── Controllers & OpenAPI ─────────────────────────────────────────────────────
 builder.Services.AddControllers()
@@ -32,6 +36,8 @@ builder.Services.AddControllers()
     });
 
 builder.Services.AddOpenApi();
+builder.Services.AddHealthChecks()
+    .AddSqlServer(builder.Configuration.GetConnectionString("Default")!);
 
 // ── CORS ──────────────────────────────────────────────────────────────────────
 var allowedOrigins = builder.Configuration.GetSection("AllowedOrigins").Get<string[]>() ?? [];
@@ -61,5 +67,6 @@ app.UseCors();
 app.UseMiddleware<ParticipantTokenMiddleware>();
 app.MapControllers();
 app.MapHub<GameHub>("/hubs/game");
+app.MapHealthChecks("/health");
 
 app.Run();
