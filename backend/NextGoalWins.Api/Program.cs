@@ -63,6 +63,14 @@ using (var scope = app.Services.CreateScope())
 if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 
+app.UseExceptionHandler(err => err.Run(async ctx =>
+{
+    ctx.Response.StatusCode = 500;
+    ctx.Response.ContentType = "application/json";
+    var ex = ctx.Features.Get<Microsoft.AspNetCore.Diagnostics.IExceptionHandlerFeature>()?.Error;
+    await ctx.Response.WriteAsJsonAsync(new { error = "ServerError", message = ex?.Message ?? "An unexpected error occurred." });
+}));
+
 app.UseCors();
 app.UseMiddleware<ParticipantTokenMiddleware>();
 app.MapControllers();

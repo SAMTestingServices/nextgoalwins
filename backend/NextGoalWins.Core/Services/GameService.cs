@@ -65,6 +65,10 @@ public class GameService(
         game.Participants.Add(participant);
         await gameRepo.SaveChangesAsync(ct);
 
+        await hubNotifier.ParticipantJoined(gameId, new Models.ParticipantDto(
+            participant.Id, participant.Name, participant.IsHost,
+            new Dictionary<string, Guid?>(), 0, 0), ct);
+
         return (game, participant);
     }
 
