@@ -1,26 +1,31 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ArrowRight, CheckCircle } from 'lucide-react';
-import { mockBackend } from '../services/mockBackend';
-import type { EventConfig } from '../types';
+import { apiClient } from '../services/apiClient';
+import type { EventConfig, Match } from '../types';
 
 export function CreateGamePage() {
   const navigate = useNavigate();
-  const matches = mockBackend.getAvailableMatches();
   const [step, setStep] = useState(1);
   const [hostName, setHostName] = useState('');
-  const [selectedMatchId, setSelectedMatchId] = useState<string>(matches[0]?.id ?? '');
+  const [matches, setMatches] = useState<Match[]>([]);
+  const [selectedMatchId, setSelectedMatchId] = useState<string>('');
   const [eventConfigs, setEventConfigs] = useState<EventConfig[]>(
-    mockBackend.getDefaultEventConfigs()
+    apiClient.getDefaultEventConfigs()
   );
   const [nameError, setNameError] = useState('');
+  const [creating, setCreating] = useState(false);
+
+  useEffect(() => {
+    apiClient.getAvailableMatches().then((m) => {
+      setMatches(m);
+      if (m.length > 0) setSelectedMatchId(m[0].id);
+    });
+  }, []);
 
   function handleStep1(e: React.FormEvent) {
     e.preventDefault();
-    if (!hostName.trim()) {
-      setNameError('Please enter your name.');
-      return;
-    }
+    if (!hostName.trim()) { setNameError('Please enter your name.'); return; }
     setNameError('');
     setStep(2);
   }
@@ -30,9 +35,14 @@ export function CreateGamePage() {
     setStep(3);
   }
 
-  function handleCreate() {
-    const game = mockBackend.createGame(hostName.trim(), selectedMatchId, eventConfigs);
-    navigate(`/lobby/${game.id}`);
+  async function handleCreate() {
+    setCreating(true);
+    try {
+      const game = await apiClient.createGame(hostName.trim(), selectedMatchId, eventConfigs);
+      navigate(`/lobby/${game.id}`);
+    } finally {
+      setCreating(false);
+    }
   }
 
   function toggleEvent(type: string) {
@@ -65,11 +75,7 @@ export function CreateGamePage() {
             <div key={s} className="flex items-center gap-2 flex-1">
               <div
                 className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold transition-colors ${
-                  step > s
-                    ? 'bg-green-500 text-white'
-                    : step === s
-                    ? 'bg-green-500 text-white'
-                    : 'bg-gray-800 text-gray-500'
+                  step > s ? 'bg-green-500 text-white' : step === s ? 'bg-green-500 text-white' : 'bg-gray-800 text-gray-500'
                 }`}
               >
                 {step > s ? <CheckCircle className="w-5 h-5" /> : s}
@@ -85,9 +91,7 @@ export function CreateGamePage() {
             <h2 className="text-white text-2xl font-bold mb-1">Who are you?</h2>
             <p className="text-gray-400 text-sm mb-6">Your name will appear on the leaderboard.</p>
             <div>
-              <label className="text-gray-400 text-xs font-medium uppercase tracking-wider block mb-2">
-                Your Name
-              </label>
+              <label className="text-gray-400 text-xs font-medium uppercase tracking-wider block mb-2">Your Name</label>
               <input
                 autoFocus
                 type="text"
@@ -113,40 +117,41 @@ export function CreateGamePage() {
             <div className="bg-gray-900 rounded-2xl p-8 border border-gray-800">
               <h2 className="text-white text-2xl font-bold mb-1">Pick a match</h2>
               <p className="text-gray-400 text-sm mb-6">Select the fixture your game is based on.</p>
-              <div className="space-y-3">
-                {matches.map((match) => (
-                  <button
-                    key={match.id}
-                    type="button"
-                    onClick={() => setSelectedMatchId(match.id)}
-                    className={`w-full rounded-xl p-4 border text-left transition-all ${
-                      selectedMatchId === match.id
-                        ? 'border-green-500 bg-green-500/10'
-                        : 'border-gray-700 bg-gray-800 hover:border-gray-600'
-                    }`}
-                  >
-                    <div className="text-xs text-gray-400 mb-2">{match.competition}</div>
-                    <div className="flex items-center justify-between">
-                      <div className="text-white font-semibold">{match.homeTeam.name}</div>
-                      <div className="text-gray-400 text-sm font-bold">vs</div>
-                      <div className="text-white font-semibold">{match.awayTeam.name}</div>
-                    </div>
-                    <div className="text-gray-500 text-xs mt-2">
-                      {new Date(match.kickoff).toLocaleString([], {
-                        weekday: 'short',
-                        day: 'numeric',
-                        month: 'short',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </div>
-                  </button>
-                ))}
-              </div>
+              {matches.length === 0 ? (
+                <div className="text-gray-400 text-sm py-4 text-center">Loading matches…</div>
+              ) : (
+                <div className="space-y-3">
+                  {matches.map((match) => (
+                    <button
+                      key={match.id}
+                      type="button"
+                      onClick={() => setSelectedMatchId(match.id)}
+                      className={`w-full rounded-xl p-4 border text-left transition-all ${
+                        selectedMatchId === match.id
+                          ? 'border-green-500 bg-green-500/10'
+                          : 'border-gray-700 bg-gray-800 hover:border-gray-600'
+                      }`}
+                    >
+                      <div className="text-xs text-gray-400 mb-2">{match.competition}</div>
+                      <div className="flex items-center justify-between">
+                        <div className="text-white font-semibold">{match.homeTeam.name}</div>
+                        <div className="text-gray-400 text-sm font-bold">vs</div>
+                        <div className="text-white font-semibold">{match.awayTeam.name}</div>
+                      </div>
+                      <div className="text-gray-500 text-xs mt-2">
+                        {new Date(match.kickoff).toLocaleString([], {
+                          weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+                        })}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
             <button
               type="submit"
-              className="w-full bg-green-500 hover:bg-green-400 text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors"
+              disabled={!selectedMatchId}
+              className="w-full bg-green-500 hover:bg-green-400 disabled:opacity-50 text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors"
             >
               Next <ArrowRight className="w-4 h-4" />
             </button>
@@ -173,15 +178,9 @@ export function CreateGamePage() {
                       <div className="flex items-center gap-3 flex-1">
                         <button
                           onClick={() => toggleEvent(event.type)}
-                          className={`w-10 h-6 rounded-full transition-colors flex-shrink-0 ${
-                            event.active ? 'bg-green-500' : 'bg-gray-700'
-                          }`}
+                          className={`w-10 h-6 rounded-full transition-colors flex-shrink-0 ${event.active ? 'bg-green-500' : 'bg-gray-700'}`}
                         >
-                          <div
-                            className={`w-4 h-4 bg-white rounded-full mx-1 transition-transform ${
-                              event.active ? 'translate-x-4' : 'translate-x-0'
-                            }`}
-                          />
+                          <div className={`w-4 h-4 bg-white rounded-full mx-1 transition-transform ${event.active ? 'translate-x-4' : 'translate-x-0'}`} />
                         </button>
                         <span className="text-lg">{event.icon}</span>
                         <span className="text-white font-medium">{event.label}</span>
@@ -191,16 +190,12 @@ export function CreateGamePage() {
                           <button
                             onClick={() => updatePoints(event.type, event.points - 5)}
                             className="w-7 h-7 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm font-bold transition-colors"
-                          >
-                            −
-                          </button>
+                          >−</button>
                           <span className="text-green-400 font-bold w-8 text-center">{event.points}</span>
                           <button
                             onClick={() => updatePoints(event.type, event.points + 5)}
                             className="w-7 h-7 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm font-bold transition-colors"
-                          >
-                            +
-                          </button>
+                          >+</button>
                         </div>
                       )}
                     </div>
@@ -220,10 +215,10 @@ export function CreateGamePage() {
 
             <button
               onClick={handleCreate}
-              disabled={eventConfigs.filter((e) => e.active).length === 0}
+              disabled={eventConfigs.filter((e) => e.active).length === 0 || creating}
               className="w-full bg-green-500 hover:bg-green-400 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors"
             >
-              Create Game <ArrowRight className="w-4 h-4" />
+              {creating ? 'Creating…' : <><span>Create Game</span> <ArrowRight className="w-4 h-4" /></>}
             </button>
           </div>
         )}

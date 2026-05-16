@@ -1,31 +1,18 @@
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Copy, Users, Crown, Clock } from 'lucide-react';
 import { useGame } from '../context/GameContext';
-import { mockBackend } from '../services/mockBackend';
 
 export function LobbyPage() {
   const { gameId } = useParams<{ gameId: string }>();
   const navigate = useNavigate();
-  const { game, currentUserId, loadGame } = useGame();
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const { game, currentUserId, loadGame, startGame } = useGame();
 
   useEffect(() => {
     if (gameId) loadGame(gameId);
   }, [gameId, loadGame]);
 
-  // Poll for new participants
-  useEffect(() => {
-    if (!gameId) return;
-    pollRef.current = setInterval(() => {
-      loadGame(gameId);
-    }, 2000);
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
-  }, [gameId, loadGame]);
-
-  // Redirect when game starts
+  // Navigate when game starts (triggered by host API call or SignalR GameStarted event)
   useEffect(() => {
     if (game?.status === 'live') {
       navigate(`/game/${game.id}`);
@@ -35,7 +22,7 @@ export function LobbyPage() {
   if (!game) {
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <div className="text-gray-400">Loading...</div>
+        <div className="text-gray-400">Loading…</div>
       </div>
     );
   }
@@ -48,9 +35,9 @@ export function LobbyPage() {
     navigator.clipboard.writeText(game!.id).catch(() => {});
   }
 
-  function handleStart() {
-    mockBackend.startGame(game!.id);
-    navigate(`/game/${game!.id}`);
+  async function handleStart() {
+    await startGame();
+    // Navigation is handled by the useEffect watching game.status
   }
 
   return (
@@ -97,9 +84,7 @@ export function LobbyPage() {
                   {p.name.charAt(0).toUpperCase()}
                 </div>
                 <span className="text-white font-medium flex-1">{p.name}</span>
-                {p.id === currentUserId && (
-                  <span className="text-xs text-green-400 font-medium">You</span>
-                )}
+                {p.id === currentUserId && <span className="text-xs text-green-400 font-medium">You</span>}
                 {p.isHost && <Crown className="w-4 h-4 text-yellow-400" />}
               </div>
             ))}
@@ -108,15 +93,10 @@ export function LobbyPage() {
 
         {/* Event summary */}
         <div className="bg-gray-900 rounded-2xl p-6 border border-gray-800">
-          <div className="text-gray-400 text-xs font-medium uppercase tracking-wider mb-3">
-            Active Events
-          </div>
+          <div className="text-gray-400 text-xs font-medium uppercase tracking-wider mb-3">Active Events</div>
           <div className="flex flex-wrap gap-2">
             {game.eventConfigs.map((e) => (
-              <div
-                key={e.type}
-                className="flex items-center gap-1.5 bg-gray-800 rounded-lg px-3 py-1.5 text-sm"
-              >
+              <div key={e.type} className="flex items-center gap-1.5 bg-gray-800 rounded-lg px-3 py-1.5 text-sm">
                 <span>{e.icon}</span>
                 <span className="text-gray-300">{e.label}</span>
                 <span className="text-green-400 font-bold">{e.points}pts</span>
@@ -136,7 +116,7 @@ export function LobbyPage() {
         ) : (
           <div className="flex items-center justify-center gap-2 text-gray-400 py-4">
             <Clock className="w-5 h-5 animate-pulse" />
-            <span>Waiting for host to start the game...</span>
+            <span>Waiting for host to start the game…</span>
           </div>
         )}
       </div>

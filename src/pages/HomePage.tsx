@@ -1,35 +1,36 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Trophy, Users, ArrowRight } from 'lucide-react';
-import { mockBackend } from '../services/mockBackend';
+import { apiClient } from '../services/apiClient';
 
 export function HomePage() {
   const navigate = useNavigate();
   const [joinCode, setJoinCode] = useState('');
   const [joinName, setJoinName] = useState('');
   const [joinError, setJoinError] = useState('');
+  const [joining, setJoining] = useState(false);
   const [tab, setTab] = useState<'create' | 'join'>('create');
 
-  function handleJoin(e: React.FormEvent) {
+  async function handleJoin(e: React.FormEvent) {
     e.preventDefault();
     setJoinError('');
     const code = joinCode.trim().toUpperCase();
-    const game = mockBackend.getGame(code);
-    if (!game) {
-      setJoinError('Game not found. Check the code and try again.');
-      return;
-    }
-    if (game.status !== 'lobby') {
-      setJoinError('This game has already started.');
-      return;
-    }
+    if (!code) { setJoinError('Please enter a game code.'); return; }
     const name = joinName.trim();
-    if (!name) {
-      setJoinError('Please enter your name.');
-      return;
+    if (!name) { setJoinError('Please enter your name.'); return; }
+
+    setJoining(true);
+    try {
+      const game = await apiClient.getGame(code);
+      if (!game) { setJoinError('Game not found. Check the code and try again.'); return; }
+      if (game.status !== 'lobby') { setJoinError('This game has already started.'); return; }
+      await apiClient.joinGame(code, name);
+      navigate(`/lobby/${code}`);
+    } catch (err) {
+      setJoinError(err instanceof Error ? err.message : 'Could not join game.');
+    } finally {
+      setJoining(false);
     }
-    mockBackend.joinGame(code, name);
-    navigate(`/lobby/${code}`);
   }
 
   return (
@@ -49,9 +50,7 @@ export function HomePage() {
           <button
             onClick={() => setTab('create')}
             className={`flex-1 py-4 text-sm font-semibold transition-colors ${
-              tab === 'create'
-                ? 'bg-green-500 text-white'
-                : 'text-gray-400 hover:text-white hover:bg-gray-800'
+              tab === 'create' ? 'bg-green-500 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800'
             }`}
           >
             Create a Game
@@ -59,9 +58,7 @@ export function HomePage() {
           <button
             onClick={() => setTab('join')}
             className={`flex-1 py-4 text-sm font-semibold transition-colors ${
-              tab === 'join'
-                ? 'bg-green-500 text-white'
-                : 'text-gray-400 hover:text-white hover:bg-gray-800'
+              tab === 'join' ? 'bg-green-500 text-white' : 'text-gray-400 hover:text-white hover:bg-gray-800'
             }`}
           >
             Join a Game
@@ -95,22 +92,18 @@ export function HomePage() {
                 <p className="text-gray-400 text-sm">Enter the code your friend shared.</p>
               </div>
               <div>
-                <label className="text-gray-400 text-xs font-medium uppercase tracking-wider block mb-1">
-                  Game Code
-                </label>
+                <label className="text-gray-400 text-xs font-medium uppercase tracking-wider block mb-1">Game Code</label>
                 <input
                   type="text"
                   value={joinCode}
                   onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
                   placeholder="e.g. ABC123"
-                  maxLength={6}
+                  maxLength={10}
                   className="w-full bg-gray-800 text-white text-center text-2xl font-mono tracking-widest rounded-xl px-4 py-3 border border-gray-700 focus:border-green-500 focus:outline-none"
                 />
               </div>
               <div>
-                <label className="text-gray-400 text-xs font-medium uppercase tracking-wider block mb-1">
-                  Your Name
-                </label>
+                <label className="text-gray-400 text-xs font-medium uppercase tracking-wider block mb-1">Your Name</label>
                 <input
                   type="text"
                   value={joinName}
@@ -119,14 +112,13 @@ export function HomePage() {
                   className="w-full bg-gray-800 text-white rounded-xl px-4 py-3 border border-gray-700 focus:border-green-500 focus:outline-none"
                 />
               </div>
-              {joinError && (
-                <p className="text-red-400 text-sm text-center">{joinError}</p>
-              )}
+              {joinError && <p className="text-red-400 text-sm text-center">{joinError}</p>}
               <button
                 type="submit"
-                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors"
+                disabled={joining}
+                className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors"
               >
-                Join Game <ArrowRight className="w-4 h-4" />
+                {joining ? 'Joining…' : <><span>Join Game</span> <ArrowRight className="w-4 h-4" /></>}
               </button>
             </form>
           )}

@@ -1,40 +1,41 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Users, ArrowRight } from 'lucide-react';
-import { mockBackend } from '../services/mockBackend';
+import { apiClient } from '../services/apiClient';
 
 export function JoinPage() {
   const { gameId } = useParams<{ gameId: string }>();
   const navigate = useNavigate();
   const [name, setName] = useState('');
   const [error, setError] = useState('');
+  const [joining, setJoining] = useState(false);
   const [gameExists, setGameExists] = useState<boolean | null>(null);
 
   useEffect(() => {
-    if (gameId) {
-      const game = mockBackend.getGame(gameId);
-      setGameExists(!!game && game.status === 'lobby');
-    }
+    if (!gameId) return;
+    apiClient.getGame(gameId).then((g) => {
+      setGameExists(!!g && g.status === 'lobby');
+    });
   }, [gameId]);
 
-  function handleJoin(e: React.FormEvent) {
+  async function handleJoin(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim()) {
-      setError('Please enter your name.');
-      return;
-    }
+    if (!name.trim()) { setError('Please enter your name.'); return; }
+    setJoining(true);
     try {
-      mockBackend.joinGame(gameId!, name.trim());
+      await apiClient.joinGame(gameId!, name.trim());
       navigate(`/lobby/${gameId}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not join game.');
+    } finally {
+      setJoining(false);
     }
   }
 
   if (gameExists === null) {
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <div className="text-gray-400">Checking game...</div>
+        <div className="text-gray-400">Checking game…</div>
       </div>
     );
   }
@@ -45,9 +46,7 @@ export function JoinPage() {
         <div className="text-center">
           <div className="text-4xl mb-4">😕</div>
           <h2 className="text-white text-xl font-bold mb-2">Game not found</h2>
-          <p className="text-gray-400 text-sm mb-6">
-            This game doesn't exist or has already started.
-          </p>
+          <p className="text-gray-400 text-sm mb-6">This game doesn't exist or has already started.</p>
           <button
             onClick={() => navigate('/')}
             className="bg-green-500 hover:bg-green-400 text-white font-semibold px-6 py-3 rounded-xl transition-colors"
@@ -73,9 +72,7 @@ export function JoinPage() {
         </div>
         <form onSubmit={handleJoin} className="space-y-4">
           <div>
-            <label className="text-gray-400 text-xs font-medium uppercase tracking-wider block mb-2">
-              Your Name
-            </label>
+            <label className="text-gray-400 text-xs font-medium uppercase tracking-wider block mb-2">Your Name</label>
             <input
               autoFocus
               type="text"
@@ -88,9 +85,10 @@ export function JoinPage() {
           </div>
           <button
             type="submit"
-            className="w-full bg-green-500 hover:bg-green-400 text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors"
+            disabled={joining}
+            className="w-full bg-green-500 hover:bg-green-400 disabled:opacity-50 text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2 transition-colors"
           >
-            Join <ArrowRight className="w-4 h-4" />
+            {joining ? 'Joining…' : <><span>Join</span> <ArrowRight className="w-4 h-4" /></>}
           </button>
         </form>
       </div>
