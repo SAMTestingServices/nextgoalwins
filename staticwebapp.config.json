@@ -9,6 +9,9 @@
     "X-Frame-Options": "DENY"
   },
   "mimeTypes": {
-    ".json": "application/json"
+    ".json": "application/json",
+    ".js": "text/javascript",
+    ".mjs": "text/javascript",
+    ".css": "text/css"
   }
 }
