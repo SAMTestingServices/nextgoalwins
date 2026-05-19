@@ -48,7 +48,9 @@ public class GameService(
 
     public async Task<(Game Game, Participant NewParticipant)> JoinGameAsync(string gameId, string playerName, CancellationToken ct = default)
     {
-        var game = await gameRepo.GetByIdAsync(gameId, ct)
+        // Use AsNoTracking so the middleware's already-tracked Participant doesn't
+        // confuse the change tracker when includes re-encounter the same entity.
+        var game = await gameRepo.GetByIdNoTrackingAsync(gameId, ct)
             ?? throw new GameNotFoundException(gameId);
 
         if (game.Status != GameStatus.Lobby)
@@ -62,8 +64,9 @@ public class GameService(
             IsHost = false,
         };
 
-        game.Participants.Add(participant);
-        await gameRepo.SaveChangesAsync(ct);
+        // Insert directly — only this one entity is in the change tracker.
+        await gameRepo.AddParticipantAsync(participant, ct);
+        game.Participants.Add(participant); // keep the in-memory game complete for the DTO
 
         await hubNotifier.ParticipantJoined(gameId, new Models.ParticipantDto(
             participant.Id, participant.Name, participant.IsHost,
